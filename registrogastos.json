@@ -1,0 +1,368 @@
+{
+  "name": "registrogastos",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -140,
+        280
+      ],
+      "id": "c2732b1b-7b83-4739-a455-abb3e7c0ec85",
+      "name": "Telegram Trigger",
+      "webhookId": "7db0e99c-eaab-451a-a9c0-7fd04d81c979",
+      "credentials": {
+        "telegramApi": {
+          "id": "OEk7pMPg9bawrCVF",
+          "name": "personal_spending_franco_Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $node[\"Telegram Trigger\"].json[\"message\"][\"chat\"][\"id\"] }}\n",
+        "text": "={{ \n  `✅ Gasto registrado:\\n• Monto: ${$node[\"Parse JSON de Gemini\"].json[\"monto\"]}\\n• Razón: ${$node[\"Parse JSON de Gemini\"].json[\"razon\"].trim()}\\n• Categoría: ${$node[\"Parse JSON de Gemini\"].json[\"categoria\"].trim()}\\n• Fecha: ${$node[\"Parse JSON de Gemini\"].json[\"fecha\"].trim()}\\n\\nRegistrado en planilla 🗂️`\n}}\n\n",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1520,
+        280
+      ],
+      "id": "b66e118d-8b8e-4512-910f-37146b0f3301",
+      "name": "Send a text message",
+      "webhookId": "d4f5fae3-5619-4167-8ac1-c3f3197ade41",
+      "credentials": {
+        "telegramApi": {
+          "id": "OEk7pMPg9bawrCVF",
+          "name": "personal_spending_franco_Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=AIzaSyD6jjQJxHNf4k8K-Hx1F7F5276V8OhEhkM\n\n",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify(JSON.parse($node[\"Preparar JSON Gemini\"].json[\"cuerpo\"])) }}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        800,
+        280
+      ],
+      "id": "68898243-ec86-46ec-b83b-70faeb655a0f",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4c6cfc3f-ec90-441c-947e-699ad81fc793",
+              "name": "monto",
+              "value": "={{ (() => {\n  const raw = $node[\"HTTP Request\"].json.candidates[0].content.parts[0].text;\n  const clean = raw.replace(/```json|```|\\n/g, '').trim();\n  return JSON.parse(clean).monto;\n})() }}\n",
+              "type": "number"
+            },
+            {
+              "id": "95bbd0be-2b47-494d-b65f-4744bc6cbf98",
+              "name": "razon",
+              "value": "={{ (() => {\n  const raw = $node[\"HTTP Request\"].json.candidates[0].content.parts[0].text;\n  const clean = raw.replace(/```json|```|\\n/g, '').trim();\n  return JSON.parse(clean).razon;\n})() }}\n",
+              "type": "string"
+            },
+            {
+              "id": "2eb7ed78-21c2-4df4-a2d5-6ab4600618a9",
+              "name": "categoria",
+              "value": "={{ (() => {\n  const raw = $node[\"HTTP Request\"].json.candidates[0].content.parts[0].text;\n  const clean = raw.replace(/```json|```|\\n/g, '').trim();\n  return JSON.parse(clean).categoria;\n})() }}\n",
+              "type": "string"
+            },
+            {
+              "id": "26d7e1a5-1b43-4225-ad06-d9630e64d401",
+              "name": "fecha",
+              "value": "={{ (() => {\n  const raw = $node[\"HTTP Request\"].json.candidates[0].content.parts[0].text;\n  const clean = raw.replace(/```json|```|\\n/g, '').trim();\n  return JSON.parse(clean).fecha;\n})() }}\n",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1020,
+        280
+      ],
+      "id": "30c6cf64-54c3-47ff-ac67-0a6602122b73",
+      "name": "Parse JSON de Gemini"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1f8f5152-2dde-48fb-8ca5-b6d9f8d36986",
+              "name": "prompt",
+              "value": "=Eres una asistente financiera experta. Tu tarea es analizar un mensaje que describe un gasto personal y extraer las principales variables y valores asociados a una compra o transferencia.\n\nDevuelve los siguientes campos estructurados:\n\n- \"monto\": solo el número gastado (sin símbolo ni separador de miles).\n- \"razon\": ¿en qué se gastó? o ¿a quién fue dirigido? (ej: supermercado, hym, cuota celu, seba).\n- \"categoria\": comida, transporte, ropa, transferencia, etc. Si no estás segura, coloca \"otros\".\n- \"fecha\": reconoce la fecha si se entrega exactamente. Si el mensaje incluye una fecha relativa como 'hoy' o 'ayer', reemplázala por la fecha real:\n  - hoy: {{ $node[\"Set Fechas\"].json[\"fecha_hoy\"] }}\n  - ayer: {{ $node[\"Set Fechas\"].json[\"fecha_ayer\"] }}\n  Si no incluye ninguna fecha, usa: {{ $node[\"Set Fechas\"].json[\"fecha_hoy\"] }}\n  \nEl formato debe ser DD-MM-AAAA.\n\nDevuelve siempre el resultado en formato JSON exactamente con esta estructura:\n{\n  \"monto\": <número>,\n  \"razon\": \"<texto>\",\n  \"categoria\": \"<texto>\",\n  \"fecha\": \"<dd-mm-aaaa>\"\n}\n\nEjemplos:\n\n1) hoy gasté 5000 en el supermercado  \n→ {\"monto\":5000, \"razon\":\"supermercado\", \"categoria\":\"comida\", \"fecha\":\"{{ $node['Set Fechas'].json['fecha_hoy'] }}\"}\n\n2) el 2 de enero gasté 200000 en hym  \n→ {\"monto\":200000, \"razon\":\"hym\", \"categoria\":\"ropa\", \"fecha\":\"02-01-2025\"}\n\n3) le acabo de transferir 3500 al seba  \n→ {\"monto\":3500, \"razon\":\"seba\", \"categoria\":\"transferencia\", \"fecha\":\"{{ $node['Set Fechas'].json['fecha_hoy'] }}\"}\n\n4) ayer le transferí 35000 a mi papá por la cuota del celu  \n→ {\"monto\":35000, \"razon\":\"cuota celu\", \"categoria\":\"transferencia\", \"fecha\":\"{{ $node['Set Fechas'].json['fecha_ayer'] }}\"}\n\nMensaje del usuario que debes procesar: {{ $node[\"Telegram Trigger\"].json[\"message\"][\"text\"] }}\n",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        320,
+        280
+      ],
+      "id": "fddb638c-b622-454d-af0e-312c0325c610",
+      "name": "Mensaje estructurado"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d920907c-bfd3-4e77-97b1-19857c992960",
+              "name": "fecha_hoy",
+              "value": "={{ (() => {   const d = new Date($now);   const dd = String(d.getDate()).padStart(2, '0');   const mm = String(d.getMonth() + 1).padStart(2, '0');   const yyyy = d.getFullYear();   return `${dd}-${mm}-${yyyy}`; })() }}",
+              "type": "string"
+            },
+            {
+              "id": "fb546623-59e7-49bf-becf-bcbba8ca7677",
+              "name": "fecha_ayer",
+              "value": "={{ (() => {   const d = new Date($now.minus(1, 'day'));   const dd = String(d.getDate()).padStart(2, '0');   const mm = String(d.getMonth() + 1).padStart(2, '0');   const yyyy = d.getFullYear();   return `${dd}-${mm}-${yyyy}`; })() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        100,
+        280
+      ],
+      "id": "b375727c-5724-49b8-af27-3342e91a5912",
+      "name": "Set Fechas"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1I0wNnA8b8thPj8B0iMfo3jT7bXp1R1bDwcqzFOAwNVs",
+          "mode": "list",
+          "cachedResultName": "Flujo n8n",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1I0wNnA8b8thPj8B0iMfo3jT7bXp1R1bDwcqzFOAwNVs/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1669773045,
+          "mode": "list",
+          "cachedResultName": "Gastos",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1I0wNnA8b8thPj8B0iMfo3jT7bXp1R1bDwcqzFOAwNVs/edit#gid=1669773045"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "fecha": "={{ $json[\"fecha\"] }}",
+            "monto": "={{ $json[\"monto\"] }}",
+            "razon": "={{ $json[\"razon\"] }}",
+            "categoria": "={{ $json[\"categoria\"] }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "fecha",
+              "displayName": "fecha",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "monto",
+              "displayName": "monto",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "razon",
+              "displayName": "razon",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "categoria",
+              "displayName": "categoria",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [
+        1260,
+        280
+      ],
+      "id": "58f5716d-3545-4823-b066-e9b733890eee",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "7UKmdrCDzb98PHp5",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "08c363f4-bd4a-4b89-b8d6-68bd8cdb2ed7",
+              "name": "=cuerpo",
+              "value": "={{ JSON.stringify({\n  contents: [\n    {\n      parts: [\n        {\n          text: $node[\"Mensaje estructurado\"].json[\"prompt\"]\n        }\n      ]\n    }\n  ]\n}) }}\n",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        540,
+        280
+      ],
+      "id": "ab262390-6daf-4856-90fe-4f8bfbb48400",
+      "name": "Preparar JSON Gemini"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Fechas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Parse JSON de Gemini",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mensaje estructurado": {
+      "main": [
+        [
+          {
+            "node": "Preparar JSON Gemini",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Fechas": {
+      "main": [
+        [
+          {
+            "node": "Mensaje estructurado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse JSON de Gemini": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar JSON Gemini": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "a6261947-8069-4abc-96cb-1dba00ca1d0e",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "52c5dfd793fe30aba378f08bfcf346753d1f8709cd47babab8868e236d2ded7a"
+  },
+  "id": "hontUZfkgesgyjFh",
+  "tags": []
+}
